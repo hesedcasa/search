@@ -20,7 +20,7 @@ $ npm install -g @hesed/search
 $ search COMMAND
 running command...
 $ search (--version)
-@hesed/search/0.1.0 linux-x64 node-v22.22.3
+@hesed/search/0.2.0 linux-x64 node-v22.22.3
 $ search --help [COMMAND]
 USAGE
   $ search COMMAND
@@ -62,5 +62,5 @@ EXAMPLES
   $ search search "update jira" --details
 ```
 
-_See code: [src/commands/search.ts](https://github.com/hesedcasa/search/blob/v0.1.0/src/commands/search.ts)_
+_See code: [src/commands/search.ts](https://github.com/hesedcasa/search/blob/v0.2.0/src/commands/search.ts)_
 <!-- commandsstop -->
