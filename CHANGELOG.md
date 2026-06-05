@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/hesedcasa/search/compare/v0.2.1...v0.2.2) (2026-06-05)
+
+
+### 🛠️ Fixes
+
+* reject invalid synonym terms ([b4080cf](https://github.com/hesedcasa/search/commit/b4080cf034a16193649fc223b880bcc1ecc5d5d7))
+* reject invalid synonym terms ([b4aa5a5](https://github.com/hesedcasa/search/commit/b4aa5a5446e45aecbb316e70e6753c70ba904747))
+
 ## [0.2.1](https://github.com/hesedcasa/search/compare/v0.2.0...v0.2.1) (2026-06-05)
 
 
