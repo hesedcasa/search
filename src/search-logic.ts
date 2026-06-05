@@ -1,5 +1,7 @@
 import {createRequire} from 'node:module'
 
+import {expandWithSynonyms, type SynonymMap} from './synonyms.js'
+
 export type SearchableCommand = {
   description?: string
   id: string
@@ -25,22 +27,25 @@ const {Index} = require('flexsearch') as {
 export async function searchCommands<T extends SearchableCommand>(
   query: string,
   commands: T[],
+  synonyms: SynonymMap = new Map(),
 ): Promise<Array<ScoredCommand<T>>> {
   const normalizedQuery = query.trim()
   if (normalizedQuery.length === 0 || commands.length === 0) return []
 
-  const haystack = commands.map((command) => commandSearchText(command))
-  return searchCommandsLexically(normalizedQuery, commands, haystack)
+  const haystack = commands.map((command) => expandWithSynonyms(commandSearchText(command), synonyms))
+  return searchCommandsLexically(normalizedQuery, commands, haystack, synonyms)
 }
 
 export function searchCommandsLexically<T extends SearchableCommand>(
   query: string,
   commands: T[],
   haystack = commands.map((command) => commandSearchText(command)),
+  synonyms: SynonymMap = new Map(),
 ): Array<ScoredCommand<T>> {
   const index = createCommandSearchIndex(haystack)
+  const expandedQuery = expandWithSynonyms(query, synonyms)
 
-  const idxs = index.search(query, {limit: commands.length, suggest: true})
+  const idxs = index.search(expandedQuery, {limit: commands.length, suggest: true})
   if (idxs.length > 0) {
     return idxs.map((idx, rank) => ({cmd: commands[Number(idx)], score: rank}))
   }
@@ -48,7 +53,7 @@ export function searchCommandsLexically<T extends SearchableCommand>(
   // Multi-token fallback: score each command by how many individual query
   // tokens it matches. Handles queries containing unknown alias words (e.g.
   // "atlassian") that don't appear literally in any command field.
-  const tokens = query.trim().split(/\s+/).filter(Boolean)
+  const tokens = expandedQuery.trim().split(/\s+/).filter(Boolean)
   if (tokens.length <= 1) return []
 
   const hitCount = new Map<number, number>()
