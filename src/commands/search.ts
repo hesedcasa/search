@@ -1,7 +1,6 @@
-import {Args, Command, CommandHelp, Flags, toConfiguredId, ux} from '@oclif/core'
+import {Args, Command, CommandHelp, Flags, toConfiguredId} from '@oclif/core'
 
-import {isMiniLMModelCached, MiniLMCommandEmbedder, type ModelLoadProgress} from '../embedders/minilm.js'
-import {type CommandEmbedder, type ScoredCommand, searchCommands, type SearchCommandsOptions} from '../search-logic.js'
+import {type ScoredCommand, searchCommands} from '../search-logic.js'
 
 export default class Search extends Command {
   static args = {
@@ -30,16 +29,7 @@ export default class Search extends Command {
   > {
     const {args, flags} = await this.parse(Search)
     const allCommands = this.config.commands.filter((c) => !c.hidden && c.pluginName !== '@oclif/plugin-plugins')
-    const loader = createModelLoader(this.jsonEnabled() || isMiniLMModelCached())
-    let scored: Array<ScoredCommand<Command.Loadable>>
-    try {
-      scored = (await searchCommands(args.query, allCommands, getSearchOptions(this.config, loader.onProgress))).slice(
-        0,
-        flags.limit,
-      )
-    } finally {
-      loader.stop()
-    }
+    const scored = (await searchCommands(args.query, allCommands)).slice(0, flags.limit)
 
     const results = scored.map((entry) => {
       const {cmd} = entry
@@ -107,75 +97,4 @@ export default class Search extends Command {
       this.log('')
     }
   }
-}
-
-function getSearchOptions(
-  config: Search['config'],
-  onLoadProgress: (progress: ModelLoadProgress) => void,
-): SearchCommandsOptions<Command.Loadable> {
-  const testConfig = config as Search['config'] & {searchEmbedder?: CommandEmbedder}
-  if (!testConfig.searchEmbedder) return {embedder: new MiniLMCommandEmbedder({onLoadProgress})}
-
-  return {embedder: testConfig.searchEmbedder}
-}
-
-function createModelLoader(silent: boolean): {onProgress: (progress: ModelLoadProgress) => void; stop: () => void} {
-  let started = false
-  let stopped = false
-
-  const start = (status?: string) => {
-    if (silent || stopped) return
-
-    if (started) {
-      ux.action.status = status
-      return
-    }
-
-    ux.action.start('Loading semantic search model', status)
-    started = true
-  }
-
-  const stop = () => {
-    if (silent || stopped) return
-
-    stopped = true
-    if (started) ux.action.stop()
-  }
-
-  return {
-    onProgress(progress) {
-      if (progress.status === 'ready') {
-        stop()
-        return
-      }
-
-      if (progress.status === 'progress_total' && typeof progress.progress === 'number') {
-        start(`${Math.round(progress.progress)}% ${formatBytes(progress.loaded)} / ${formatBytes(progress.total)}`)
-        return
-      }
-
-      if (progress.status === 'download') {
-        start(formatProgressFile(progress.file))
-      }
-    },
-    stop,
-  }
-}
-
-function formatProgressFile(file: string | undefined): string | undefined {
-  return file?.split('/').at(-1)
-}
-
-function formatBytes(value: number | undefined): string {
-  if (!value || value <= 0) return '?'
-
-  const units = ['B', 'KB', 'MB', 'GB']
-  let size = value
-  let unit = 0
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024
-    unit++
-  }
-
-  return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`
 }
