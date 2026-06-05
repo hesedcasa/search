@@ -24,16 +24,18 @@ type TransformersModule = {
   pipeline(
     task: 'feature-extraction',
     model: string,
-    options?: {progress_callback?: (progress: ModelLoadProgress) => void},
+    options?: TransformersPipelineOptions,
   ): Promise<unknown>
 }
 
 type TransformersPipelineOptions = {
+  dtype?: 'int8'
   progress_callback?: (progress: ModelLoadProgress) => void
 }
 
 const MINILM_MODEL = 'Xenova/paraphrase-MiniLM-L3-v2'
-const MODEL_CACHE_FILES = ['config.json', 'tokenizer.json', 'tokenizer_config.json', 'onnx/model.onnx']
+const MINILM_DTYPE = 'int8'
+const MODEL_CACHE_FILES = ['config.json', 'tokenizer.json', 'tokenizer_config.json', 'onnx/model_int8.onnx']
 // eslint-disable-next-line no-new-func
 const importTransformers = new Function('specifier', 'return import(specifier)') as (
   specifier: string,
@@ -62,7 +64,7 @@ export class MiniLMCommandEmbedder implements CommandEmbedder {
 
   private async getExtractor(): Promise<FeatureExtractionPipeline> {
     this.extractorPromise ??= importTransformers('@huggingface/transformers').then(async ({pipeline}) => {
-      const pipelineOptions: TransformersPipelineOptions = {}
+      const pipelineOptions: TransformersPipelineOptions = {dtype: MINILM_DTYPE}
       // eslint-disable-next-line camelcase
       pipelineOptions.progress_callback = (progress) => this.onLoadProgress?.(progress)
       const extractor = await pipeline('feature-extraction', MINILM_MODEL, pipelineOptions)
