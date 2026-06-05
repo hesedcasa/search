@@ -193,5 +193,27 @@ describe('search', () => {
 
       expect(results[0].cmd.id).to.equal('login')
     })
+
+    it('caches command embeddings for repeated semantic searches', async () => {
+      const commands = [
+        {id: 'deploy', summary: 'Ship the app to production'},
+        {id: 'login', summary: 'Authenticate the current user'},
+      ]
+      const embeddedBatchSizes: number[] = []
+      const embedder: CommandEmbedder = {
+        async embed(texts: string[]) {
+          embeddedBatchSizes.push(texts.length)
+          return texts.map((text) => {
+            const normalized = text.toLowerCase()
+            return normalized.includes('sign in') || normalized.includes('authenticate') ? [1, 0] : [0, 1]
+          })
+        },
+      }
+
+      await searchCommands('sign in', commands, {embedder})
+      await searchCommands('sign in', commands, {embedder})
+
+      expect(embeddedBatchSizes).to.deep.equal([3, 1])
+    })
   })
 })

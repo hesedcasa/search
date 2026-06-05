@@ -36,6 +36,7 @@ const DEFAULT_SEMANTIC_WEIGHT = 0.75
 const DEFAULT_LEXICAL_WEIGHT = 0.25
 
 let defaultEmbedderPromise: Promise<CommandEmbedder> | undefined
+const embeddingCache = new WeakMap<CommandEmbedder, Map<string, number[]>>()
 
 export async function searchCommands<T extends SearchableCommand>(
   query: string,
@@ -115,7 +116,7 @@ async function searchCommandsSemantically<T extends SearchableCommand>(
   options: SearchCommandsOptions<T>,
 ): Promise<Array<ScoredCommand<T>>> {
   const embedder = options.embedder ?? (await getDefaultEmbedder())
-  const [queryEmbedding, ...commandEmbeddings] = await embedder.embed([query, ...haystack])
+  const {commandEmbeddings, queryEmbedding} = await getSemanticEmbeddings(embedder, query, haystack)
 
   return commandEmbeddings
     .map((embedding, idx) => ({
@@ -124,6 +125,31 @@ async function searchCommandsSemantically<T extends SearchableCommand>(
     }))
     .filter(({score}) => Number.isFinite(score))
     .sort((a, b) => b.score - a.score)
+}
+
+async function getSemanticEmbeddings(
+  embedder: CommandEmbedder,
+  query: string,
+  commandTexts: string[],
+): Promise<{commandEmbeddings: number[][]; queryEmbedding: number[]}> {
+  let cache = embeddingCache.get(embedder)
+  if (!cache) {
+    cache = new Map()
+    embeddingCache.set(embedder, cache)
+  }
+
+  const missingCommandTexts = [...new Set(commandTexts.filter((text) => !cache.has(text)))]
+  const [queryEmbedding, ...missingCommandEmbeddings] = await embedder.embed([query, ...missingCommandTexts])
+
+  for (const [idx, text] of missingCommandTexts.entries()) {
+    const embedding = missingCommandEmbeddings[idx]
+    if (embedding) cache.set(text, embedding)
+  }
+
+  return {
+    commandEmbeddings: commandTexts.map((text) => cache.get(text) ?? []),
+    queryEmbedding,
+  }
 }
 
 async function getDefaultEmbedder(): Promise<CommandEmbedder> {

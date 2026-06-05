@@ -3,6 +3,8 @@ import {Args, Command, CommandHelp, Flags, toConfiguredId, ux} from '@oclif/core
 import {isMiniLMModelCached, MiniLMCommandEmbedder, type ModelLoadProgress} from '../embedders/minilm.js'
 import {type CommandEmbedder, type ScoredCommand, searchCommands, type SearchCommandsOptions} from '../search-logic.js'
 
+let miniLMEmbedder: MiniLMCommandEmbedder | undefined
+
 export default class Search extends Command {
   static args = {
     query: Args.string({description: 'Search term to filter commands by', required: true}),
@@ -114,7 +116,11 @@ function getSearchOptions(
   onLoadProgress: (progress: ModelLoadProgress) => void,
 ): SearchCommandsOptions<Command.Loadable> {
   const testConfig = config as Search['config'] & {searchEmbedder?: CommandEmbedder}
-  if (!testConfig.searchEmbedder) return {embedder: new MiniLMCommandEmbedder({onLoadProgress})}
+  if (!testConfig.searchEmbedder) {
+    miniLMEmbedder ??= new MiniLMCommandEmbedder()
+    miniLMEmbedder.setLoadProgressHandler(onLoadProgress)
+    return {embedder: miniLMEmbedder}
+  }
 
   return {embedder: testConfig.searchEmbedder}
 }

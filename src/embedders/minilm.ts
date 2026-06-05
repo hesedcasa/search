@@ -42,8 +42,11 @@ const require = createRequire(import.meta.url)
 
 export class MiniLMCommandEmbedder implements CommandEmbedder {
   private extractorPromise: Promise<FeatureExtractionPipeline> | undefined
+  private onLoadProgress: ((progress: ModelLoadProgress) => void) | undefined
 
-  constructor(private readonly options: {onLoadProgress?: (progress: ModelLoadProgress) => void} = {}) {}
+  constructor(options: {onLoadProgress?: (progress: ModelLoadProgress) => void} = {}) {
+    this.onLoadProgress = options.onLoadProgress
+  }
 
   async embed(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return []
@@ -53,11 +56,15 @@ export class MiniLMCommandEmbedder implements CommandEmbedder {
     return tensorToRows(output.data, output.dims)
   }
 
+  setLoadProgressHandler(onLoadProgress: (progress: ModelLoadProgress) => void): void {
+    this.onLoadProgress = onLoadProgress
+  }
+
   private async getExtractor(): Promise<FeatureExtractionPipeline> {
     this.extractorPromise ??= importTransformers('@huggingface/transformers').then(async ({pipeline}) => {
       const pipelineOptions: TransformersPipelineOptions = {}
       // eslint-disable-next-line camelcase
-      pipelineOptions.progress_callback = this.options.onLoadProgress
+      pipelineOptions.progress_callback = (progress) => this.onLoadProgress?.(progress)
       const extractor = await pipeline('feature-extraction', MINILM_MODEL, pipelineOptions)
       return extractor as FeatureExtractionPipeline
     })
