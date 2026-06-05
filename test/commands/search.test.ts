@@ -2,6 +2,7 @@ import {expect} from 'chai'
 
 import Search from '../../src/commands/search.js'
 import {searchCommands} from '../../src/search-logic.js'
+import {buildSynonymMap} from '../../src/synonyms.js'
 
 type MockCommand = {
   description?: string
@@ -163,6 +164,46 @@ describe('search', () => {
       const results = await searchCommands('sign in', commands)
 
       expect(results).to.deep.equal([])
+    })
+  })
+
+  describe('synonyms', () => {
+    const commands = [
+      {id: 'jira issue get', pluginName: '@oclif/jira', summary: 'Get details of a specific issue'},
+      {id: 'jira issue list', pluginName: '@oclif/jira', summary: 'List issues'},
+      {id: 'deploy', summary: 'Ship the app to production'},
+    ]
+
+    it('matches "get ticket" to "jira issue get" when ticket↔issue synonym is loaded', async () => {
+      const synonyms = buildSynonymMap([['ticket', 'issue']])
+      const results = await searchCommands('get ticket', commands, synonyms)
+      const ids = results.map((r) => r.cmd.id)
+      expect(ids).to.include('jira issue get')
+    })
+
+    it('returns no synonym matches when no synonyms are configured', async () => {
+      // "find bug" has no lexical overlap with any command — neither token appears
+      // in any id, summary, or pluginName — so without synonyms it returns nothing
+      const results = await searchCommands('find bug', commands)
+      expect(results).to.deep.equal([])
+    })
+
+    it('matches "find bug" to issue commands when bug↔issue synonym is loaded', async () => {
+      const synonyms = buildSynonymMap([['bug', 'issue']])
+      const results = await searchCommands('find bug', commands, synonyms)
+      const ids = results.map((r) => r.cmd.id)
+      expect(ids).to.include('jira issue get')
+    })
+
+    it('matches multi-word synonym phrases', async () => {
+      const synonyms = buildSynonymMap([['pr', 'pull request', 'merge request']])
+      const commandsWithPr = [
+        {id: 'bb pr create', summary: 'Create a pull request'},
+        {id: 'jira issue get', summary: 'Get details of a specific issue'},
+      ]
+      const results = await searchCommands('create merge request', commandsWithPr, synonyms)
+      const ids = results.map((r) => r.cmd.id)
+      expect(ids).to.include('bb pr create')
     })
   })
 })

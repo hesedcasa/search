@@ -1,6 +1,7 @@
 import {Args, Command, CommandHelp, Flags, toConfiguredId} from '@oclif/core'
 
 import {type ScoredCommand, searchCommands} from '../search-logic.js'
+import {loadStoredSynonymMap} from '../synonym-store.js'
 
 export default class Search extends Command {
   static args = {
@@ -29,7 +30,8 @@ export default class Search extends Command {
   > {
     const {args, flags} = await this.parse(Search)
     const allCommands = this.config.commands.filter((c) => !c.hidden && c.pluginName !== '@oclif/plugin-plugins')
-    const scored = (await searchCommands(args.query, allCommands)).slice(0, flags.limit)
+    const synonyms = loadStoredSynonymMap(this.config.configDir)
+    const scored = (await searchCommands(args.query, allCommands, synonyms)).slice(0, flags.limit)
 
     const results = scored.map((entry) => {
       const {cmd} = entry
