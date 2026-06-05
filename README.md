@@ -20,7 +20,7 @@ $ npm install -g @hesed/search
 $ search COMMAND
 running command...
 $ search (--version)
-@hesed/search/0.1.0 darwin-arm64 node-v22.14.0
+@hesed/search/0.1.0 linux-x64 node-v22.22.3
 $ search --help [COMMAND]
 USAGE
   $ search COMMAND
