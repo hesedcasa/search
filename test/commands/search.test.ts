@@ -1,6 +1,7 @@
 import {expect} from 'chai'
 
 import Search from '../../src/commands/search.js'
+import {type CommandEmbedder, searchCommands} from '../../src/search-logic.js'
 
 type MockCommand = {
   description?: string
@@ -20,12 +21,19 @@ const FIXTURE_COMMANDS: MockCommand[] = [
   {hidden: false, id: 'jira issue get', pluginName: '@oclif/jira', summary: 'Get details of a specific issue'},
 ]
 
+const TEST_EMBEDDER: CommandEmbedder = {
+  async embed(texts: string[]) {
+    return texts.map((text) => testEmbedding(text))
+  },
+}
+
 function makeSearch(argv: string[]): {cmd: Search; output: () => string} {
   const lines: string[] = []
   const config = {
     bin: 'sdkck',
     commands: FIXTURE_COMMANDS,
     runHook: async () => ({failures: [], successes: []}),
+    searchEmbedder: TEST_EMBEDDER,
     topicSeparator: ' ',
   } as never
   const cmd = new Search(argv, config)
@@ -42,6 +50,20 @@ function makeSearchJson(argv: string[]): {cmd: Search; output: () => string} {
   // property that the base Command exposes — override it for unit tests.
   ;(cmd as unknown as {jsonEnabled: () => boolean}).jsonEnabled = () => true
   return {cmd, output}
+}
+
+function testEmbedding(text: string): number[] {
+  const normalized = text.toLowerCase()
+  const vector = [
+    Number(normalized.includes('help')),
+    Number(normalized.includes('update') || normalized.includes('updt')),
+    Number(normalized.includes('search')),
+    Number(normalized.includes('auth') || normalized.includes('authenticate') || normalized.includes('atlassian')),
+    Number(normalized.includes('issue') || normalized.includes('jira') || normalized.includes('get')),
+  ]
+
+  const magnitude = Math.hypot(...vector)
+  return magnitude === 0 ? vector : vector.map((value) => value / magnitude)
 }
 
 describe('search', () => {
@@ -149,6 +171,27 @@ describe('search', () => {
       const {cmd} = makeSearch(['e'])
       const result = await cmd.run()
       expect(result.length).to.be.at.most(5)
+    })
+  })
+
+  describe('semantic ranking', () => {
+    it('can find a command from semantic intent when lexical search has no match', async () => {
+      const commands = [
+        {id: 'deploy', summary: 'Ship the app to production'},
+        {id: 'login', summary: 'Authenticate the current user'},
+      ]
+      const embedder: CommandEmbedder = {
+        async embed(texts: string[]) {
+          return texts.map((text) => {
+            const normalized = text.toLowerCase()
+            return normalized.includes('sign in') || normalized.includes('authenticate') ? [1, 0] : [0, 1]
+          })
+        },
+      }
+
+      const results = await searchCommands('sign in', commands, {embedder})
+
+      expect(results[0].cmd.id).to.equal('login')
     })
   })
 })

@@ -8,6 +8,7 @@
   },
   "bugs": "https://github.com/hesedcasa/search/issues",
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@leeoniya/ufuzzy": "^1.0.19",
     "@oclif/core": "^4"
   },
