@@ -7,6 +7,7 @@ export default class SynonymsExport extends Command {
   static args = {
     file: Args.string({description: 'Output file path (prints to stdout if omitted)', required: false}),
   }
+
   static description = 'Export the stored synonyms to a JSON file or stdout'
   static examples = ['<%= config.bin %> synonyms export', '<%= config.bin %> synonyms export ./my-synonyms.json']
 

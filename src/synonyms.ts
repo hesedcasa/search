@@ -62,7 +62,7 @@ export function expandWithSynonyms(text: string, synonyms: SynonymMap): string {
   if (synonyms.size === 0) return text
   const extras: string[] = []
   for (const [term, syns] of synonyms) {
-    if (containsTerm(text, term)) {
+    if (hasTerm(text, term)) {
       extras.push(...syns)
     }
   }
@@ -75,7 +75,7 @@ function escapeRegex(s: string): string {
   return s.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&').replaceAll(/\s+/g, String.raw`\s+`)
 }
 
-function containsTerm(text: string, term: string): boolean {
-  const pattern = new RegExp(`(?<![\\w])${escapeRegex(term)}(?![\\w])`, 'i')
+function hasTerm(text: string, term: string): boolean {
+  const pattern = new RegExp(String.raw`(?<![\w])${escapeRegex(term)}(?![\w])`, 'i')
   return pattern.test(text)
 }

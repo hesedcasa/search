@@ -12,15 +12,15 @@
     "flexsearch": "^0.8.212"
   },
   "devDependencies": {
-    "@eslint/compat": "^1",
+    "@eslint/compat": "^2",
     "@oclif/prettier-config": "^0.2.1",
     "@oclif/test": "^4",
     "@types/chai": "^4",
     "@types/mocha": "^10",
     "@types/node": "^26",
     "chai": "^4",
-    "eslint": "^9",
-    "eslint-config-oclif": "^6",
+    "eslint": "^10",
+    "eslint-config-oclif": "^7",
     "eslint-config-prettier": "^10",
     "mocha": "^11",
     "oclif": "^4",
@@ -31,7 +31,7 @@
     "typescript": "^5"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "files": [
     "./bin",

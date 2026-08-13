@@ -65,9 +65,12 @@ export function searchCommandsLexically<T extends SearchableCommand>(
     }
   }
 
-  return [...hitCount.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
-    .map(([idx, hits]) => ({cmd: commands[idx], score: tokens.length - hits}))
+  return (
+    [...hitCount]
+      // eslint-disable-next-line unicorn/no-array-sort -- the spread already produced a fresh array to mutate
+      .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+      .map(([idx, hits]) => ({cmd: commands[idx], score: tokens.length - hits}))
+  )
 }
 
 function createCommandSearchIndex(haystack: string[]): FlexSearchIndex {
