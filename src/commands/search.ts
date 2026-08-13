@@ -7,6 +7,7 @@ export default class Search extends Command {
   static args = {
     query: Args.string({description: 'Search term to filter commands by', required: true}),
   }
+
   static description = 'Search for available commands'
   static enableJsonFlag = true
   static examples = [
@@ -14,6 +15,7 @@ export default class Search extends Command {
     '<%= config.bin %> search jira -d',
     '<%= config.bin %> search "update jira" --details',
   ]
+
   static flags = {
     details: Flags.boolean({char: 'd', description: 'Show full help for each matched command', required: false}),
     limit: Flags.integer({char: 'n', default: 5, description: 'Maximum number of results to return', required: false}),
@@ -44,10 +46,10 @@ export default class Search extends Command {
           ? usageOverride.join('\n')
           : usageOverride
         : [configuredId, argList].filter(Boolean).join(' ')
-      const args = visibleArgs.map((a) => ({
+      const cmdArgs = visibleArgs.map((a) => ({
         [a.name]: {description: a.description ?? '', required: a.required ?? false, type: 'string'},
       }))
-      const flags = Object.values(cmd.flags ?? {})
+      const cmdFlags = Object.values(cmd.flags ?? {})
         .filter((f) => !f.hidden)
         .map((f) => ({
           [f.name]: {
@@ -57,11 +59,11 @@ export default class Search extends Command {
           },
         }))
       return {
-        args,
+        args: cmdArgs,
         command: usage,
         commandId: configuredId,
         description: cmd.summary ?? cmd.description ?? '',
-        flags,
+        flags: cmdFlags,
       }
     })
 
@@ -81,7 +83,8 @@ export default class Search extends Command {
 
     this.log(`Found ${results.length} command${results.length === 1 ? '' : 's'}:\n`)
 
-    for (const {cmd, result} of scored.map((s, i) => ({cmd: s.cmd, result: results[i]}))) {
+    for (const [i, {cmd}] of scored.entries()) {
+      const result = results[i]
       this.log(result.command)
 
       if (flags.details) {
@@ -89,8 +92,8 @@ export default class Search extends Command {
         this.log(help.generate())
       } else {
         const raw = cmd.summary ?? cmd.description ?? ''
-        // eslint-disable-next-line unicorn/prefer-string-replace-all
-        const description = raw.replace(/<%=\s*config\.bin\s*%>/g, this.config.bin).split('\n')[0]
+        // A function replacement keeps `$`-sequences in the bin name literal.
+        const description = raw.replaceAll(/<%=\s*config\.bin\s*%>/g, () => this.config.bin).split('\n', 1)[0]
         if (description) {
           this.log(description)
         }

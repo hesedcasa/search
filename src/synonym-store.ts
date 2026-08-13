@@ -1,12 +1,12 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
-import {join} from 'node:path'
+import path from 'node:path'
 
 import {buildSynonymMap, parseSynonymGroups, type SynonymGroup, type SynonymMap} from './synonyms.js'
 
 const SYNONYMS_FILENAME = 'synonyms.json'
 
 export function synonymsPath(configDir: string): string {
-  return join(configDir, SYNONYMS_FILENAME)
+  return path.join(configDir, SYNONYMS_FILENAME)
 }
 
 export function readSynonymGroups(configDir: string | undefined): SynonymGroup[] {

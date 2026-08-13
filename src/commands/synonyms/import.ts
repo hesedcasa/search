@@ -8,11 +8,13 @@ export default class SynonymsImport extends Command {
   static args = {
     file: Args.string({description: 'Path to a JSON synonyms file to import', required: true}),
   }
+
   static description = 'Import synonyms from a JSON file'
   static examples = [
     '<%= config.bin %> synonyms import ./synonyms.json',
     '<%= config.bin %> synonyms import ./synonyms.json --merge',
   ]
+
   static flags = {
     merge: Flags.boolean({
       default: false,
