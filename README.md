@@ -20,7 +20,7 @@ $ npm install -g @hesed/search
 $ search COMMAND
 running command...
 $ search (--version)
-@hesed/search/0.2.2 linux-x64 node-v22.22.3
+@hesed/search/0.2.3 linux-x64 node-v22.23.2
 $ search --help [COMMAND]
 USAGE
   $ search COMMAND
@@ -64,7 +64,7 @@ EXAMPLES
   $ search search "update jira" --details
 ```
 
-_See code: [src/commands/search.ts](https://github.com/hesedcasa/search/blob/v0.2.2/src/commands/search.ts)_
+_See code: [src/commands/search.ts](https://github.com/hesedcasa/search/blob/v0.2.3/src/commands/search.ts)_
 
 ## `search synonyms export [FILE]`
 
@@ -86,7 +86,7 @@ EXAMPLES
   $ search synonyms export ./my-synonyms.json
 ```
 
-_See code: [src/commands/synonyms/export.ts](https://github.com/hesedcasa/search/blob/v0.2.2/src/commands/synonyms/export.ts)_
+_See code: [src/commands/synonyms/export.ts](https://github.com/hesedcasa/search/blob/v0.2.3/src/commands/synonyms/export.ts)_
 
 ## `search synonyms import FILE`
 
@@ -111,5 +111,5 @@ EXAMPLES
   $ search synonyms import ./synonyms.json --merge
 ```
 
-_See code: [src/commands/synonyms/import.ts](https://github.com/hesedcasa/search/blob/v0.2.2/src/commands/synonyms/import.ts)_
+_See code: [src/commands/synonyms/import.ts](https://github.com/hesedcasa/search/blob/v0.2.3/src/commands/synonyms/import.ts)_
 <!-- commandsstop -->
