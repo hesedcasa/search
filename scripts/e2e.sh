@@ -60,24 +60,31 @@ done
 # the developer's real sdkck setup, and the EXIT trap must never rm -rf that.
 # This variable only ever holds a path this script itself mktemp'd.
 SDKCK_E2E_HOME=""
+SEARCH_README_BAK=""
 
 cleanup() {
   local status=$?
 
   # npm pack's prepack (`oclif readme`) rewrites the tracked README.md with
-  # the current machine's usage string. Restore the backup taken before
-  # packing — an e2e run must never dirty this repo's worktree or clobber
-  # uncommitted README edits. The sibling repos' backups are restored below.
-  if [ -f "$REPO_ROOT/README.md.e2e-bak" ]; then
-    mv "$REPO_ROOT/README.md.e2e-bak" "$REPO_ROOT/README.md"
-  fi
+  # the current machine's usage string, so every README this run packed is
+  # restored here — an e2e run must never dirty a worktree or clobber
+  # uncommitted README edits. Backups live in the throwaway home under
+  # per-run names, so a run killed before its restore (SIGKILL skips this
+  # trap) leaves its recovery copy behind undisturbed: the next run writes a
+  # different name and can never overwrite it.
+  if [ -n "$SDKCK_E2E_HOME" ]; then
+    if [ -f "$SEARCH_README_BAK" ]; then
+      mv "$SEARCH_README_BAK" "$REPO_ROOT/README.md"
+    fi
 
-  if [ "$E2E_PLUGIN_SOURCE" = "local" ]; then
-    for plugin in $ALL_PLUGINS; do
-      if [ -f "$E2E_PLUGIN_ROOT/$plugin/README.md.e2e-bak" ]; then
-        mv "$E2E_PLUGIN_ROOT/$plugin/README.md.e2e-bak" "$E2E_PLUGIN_ROOT/$plugin/README.md"
-      fi
-    done
+    if [ "$E2E_PLUGIN_SOURCE" = "local" ]; then
+      local plugin
+      for plugin in $ALL_PLUGINS; do
+        if [ -f "$SDKCK_E2E_HOME/$plugin-README.md.bak" ]; then
+          mv "$SDKCK_E2E_HOME/$plugin-README.md.bak" "$E2E_PLUGIN_ROOT/$plugin/README.md"
+        fi
+      done
+    fi
   fi
 
   if [ "$KEEP" -ne 0 ]; then
@@ -140,18 +147,23 @@ install_plugin() {
 # build under test, not the release sdkck bundles. Packing runs prepack,
 # regenerating oclif.manifest.json and the README — the same artifacts the
 # publish workflow ships — so the host leg exercises the real install
-# artifact. The README backup is restored in the EXIT trap.
-cp "$REPO_ROOT/README.md" "$REPO_ROOT/README.md.e2e-bak"
+# artifact. The README backup goes into the throwaway home under a per-run
+# name and is restored in the EXIT trap: a run killed before the restore can
+# never have its recovery copy overwritten by the next run, which writes a
+# different name (the home is mktemp'd per run).
+SEARCH_README_BAK="$SDKCK_E2E_HOME/search-README.md.bak"
+cp "$REPO_ROOT/README.md" "$SEARCH_README_BAK"
 echo "==> Packing the current build"
 TGZ="$(npm pack --pack-destination "$SDKCK_E2E_HOME" | tail -n 1)"
 install_plugin "file:$SDKCK_E2E_HOME/$TGZ" "@hesed/search (this build)"
 
 # `oclif readme` inside each sibling's prepack rewrites its tracked README.md,
-# so back it up and restore it after packing. The backup lives next to the
-# README (not in the throwaway home) so the EXIT trap can restore it even when
-# packing itself fails partway through. Only the tarball path is written to
-# stdout — the caller captures it with command substitution, so progress goes
-# to stderr.
+# so back it up and restore it after packing. The backup lives in the throwaway
+# home under a per-run name — never a fixed path next to the README — so a run
+# killed between the backup and the restore cannot have its recovery copy
+# overwritten by the next run; the EXIT trap restores whatever is left. Only
+# the tarball path is written to stdout — the caller captures it with command
+# substitution, so progress goes to stderr.
 pack_plugin() {
   local dir="$1"
   local name
@@ -164,10 +176,11 @@ pack_plugin() {
 
   (cd "$dir" && npm run --silent build 1>&2)
 
-  cp "$dir/README.md" "$dir/README.md.e2e-bak"
+  local bak="$SDKCK_E2E_HOME/$name-README.md.bak"
+  cp "$dir/README.md" "$bak"
   local tgz
   tgz="$(cd "$dir" && npm pack --pack-destination "$SDKCK_E2E_HOME" | tail -n 1)"
-  mv "$dir/README.md.e2e-bak" "$dir/README.md"
+  mv "$bak" "$dir/README.md"
 
   echo "$SDKCK_E2E_HOME/$tgz"
 }
