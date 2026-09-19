@@ -1,0 +1,87 @@
+name: Run end-to-end tests
+
+permissions: read-all
+
+# No live sandboxes and no secrets: the search plugin only indexes command
+# metadata, it never invokes another plugin's command — so unlike the host
+# suite in the sdkck repo this runs per push and pull request.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: search-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-e2e-tests:
+    name: End-to-end tests (standalone CLI + sdkck host)
+    runs-on: ubuntu-latest
+    # Two legs (standalone CLI, then the same suite via sdkck); the sdkck leg
+    # additionally installs every @hesed plugin from the registry.
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          # Nothing here pushes, and the default would leave GITHUB_TOKEN in
+          # the workspace git config for every later step to reuse.
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          cache: npm
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the CLI
+        run: npm run build
+
+      - name: Run end-to-end tests through the standalone CLI
+        run: npm run e2e:mocha
+
+      # Second leg: the same suite through the latest sdkck host CLI with this
+      # build packed and installed as its @hesed/search plugin — covering the
+      # `prepack` artifacts (oclif.manifest.json, README) and plugin dispatch
+      # under a host. This build is installed before any `sdkck search` call
+      # (the host bundles a released @hesed/search; the fresh install is what
+      # must win), and the other @hesed plugins come from the registry so the
+      # search surface is the real, installed one. The throwaway sdkck home
+      # (mktemp -d) keeps the installs, config and caches off the runner's
+      # real sdkck setup; the test side finds it via E2E_SDKCK_HOME.
+      - name: Install the latest sdkck, this build, and the plugins
+        run: |
+          npm install --no-save sdkck
+          home="$(mktemp -d)"
+          echo "E2E_SDKCK_HOME=$home" >> "$GITHUB_ENV"
+          # A `file:` URL is required: sdkck resolves any bare path containing
+          # a slash as a GitHub org/repo. Packing into the throwaway home
+          # keeps the tarball out of the workspace.
+          tgz="$(npm pack --pack-destination "$home" | tail -n 1)"
+          # This build first (a `file:` URL), then every other @hesed plugin
+          # at the published release users get from the registry.
+          SDKCK_CACHE_DIR="$home/cache" \
+          SDKCK_CONFIG_DIR="$home/config" \
+          SDKCK_DATA_DIR="$home/data" \
+            ./node_modules/.bin/sdkck plugins install "file:$home/$tgz"
+          for plugin in jira conni bb sentry trello mysql psql api2cli; do
+            SDKCK_CACHE_DIR="$home/cache" \
+            SDKCK_CONFIG_DIR="$home/config" \
+            SDKCK_DATA_DIR="$home/data" \
+              ./node_modules/.bin/sdkck plugins install "@hesed/$plugin@latest"
+          done
+          echo "E2E_SDKCK_PLUGINS=jira conni bb sentry trello mysql psql api2cli" >> "$GITHUB_ENV"
+
+      - name: Run end-to-end tests via sdkck
+        run: npm run e2e:mocha
+        env:
+          E2E_HOST_CLI: sdkck
+          E2E_SDKCK_HOME: ${{ env.E2E_SDKCK_HOME }}
+          E2E_SDKCK_PLUGINS: ${{ env.E2E_SDKCK_PLUGINS }}
