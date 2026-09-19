@@ -3,30 +3,13 @@ import {expect} from 'chai'
 import Search from '../../src/commands/search.js'
 import {searchCommands} from '../../src/search-logic.js'
 import {buildSynonymMap} from '../../src/synonyms.js'
-
-type MockCommand = {
-  description?: string
-  hidden: boolean
-  id: string
-  pluginName: string
-  summary?: string
-}
-
-const FIXTURE_COMMANDS: MockCommand[] = [
-  {hidden: false, id: 'help', pluginName: '@oclif/plugin-help', summary: 'Display help for sdkck.'},
-  {hidden: false, id: 'update', pluginName: '@oclif/plugin-update', summary: 'Update the sdkck CLI.'},
-  {hidden: false, id: 'search', pluginName: 'sdkck', summary: 'Search for available commands'},
-  {hidden: false, id: 'plugins install', pluginName: '@oclif/plugin-plugins', summary: 'Install a plugin.'},
-  {hidden: false, id: 'plugins uninstall', pluginName: '@oclif/plugin-plugins', summary: 'Removes a plugin.'},
-  {hidden: false, id: 'jira auth add ', pluginName: '@oclif/jira', summary: 'Add Atlassian authentication'},
-  {hidden: false, id: 'jira issue get', pluginName: '@oclif/jira', summary: 'Get details of a specific issue'},
-]
+import {fixtureCommand, HOST_COMMANDS} from '../fixtures.js'
 
 function makeSearch(argv: string[]): {cmd: Search; output: () => string} {
   const lines: string[] = []
   const config = {
     bin: 'sdkck',
-    commands: FIXTURE_COMMANDS,
+    commands: HOST_COMMANDS,
     runHook: async () => ({failures: [], successes: []}),
     topicSeparator: ' ',
   } as never
@@ -66,6 +49,8 @@ describe('search', () => {
     })
 
     it('matches fuzzy abbreviations', async () => {
+      // 'updt' appears in no command id or description; only fuzzy matching
+      // bridges it to the real `bb pr update` command.
       const {cmd, output} = makeSearch(['updt'])
       await cmd.run()
       expect(output()).to.contain('update')
@@ -78,9 +63,11 @@ describe('search', () => {
     })
 
     it('matches by plugin name', async () => {
-      const {cmd, output} = makeSearch(['plugin-update'])
+      // Neither 'api import' nor its description mentions 'api2cli'; only the
+      // plugin name '@hesed/api2cli' does.
+      const {cmd, output} = makeSearch(['api2cli'])
       await cmd.run()
-      expect(output()).to.contain('update')
+      expect(output()).to.contain('api import')
     })
 
     it('excludes @oclif/plugin-plugins commands', async () => {
@@ -91,22 +78,26 @@ describe('search', () => {
       expect(output().split('\n')).to.not.include('plugins install')
     })
 
-    it('finds atlassian commands by topic prefix', async () => {
-      const {cmd, output} = makeSearch(['atlassian authenticate'])
+    it('finds commands by a description keyword', async () => {
+      // 'authenticate' only appears (stemmed) in 'Add Jira authentication'.
+      const {cmd, output} = makeSearch(['authenticate'])
       await cmd.run()
       expect(output()).to.contain('jira auth add')
     })
 
-    it('matches deep multi-word command by keyword', async () => {
-      const {cmd, output} = makeSearch(['atlassian jira issue get'])
+    it('matches a deep multi-word command by its full id', async () => {
+      const {cmd, output} = makeSearch(['jira issue create'])
       await cmd.run()
-      expect(output()).to.contain('jira issue get')
+      expect(output()).to.contain('jira issue create')
     })
 
-    it('matches deep multi-word command by keyword', async () => {
-      const {cmd, output} = makeSearch(['jira issue'])
+    it('matches the `jira issue` command by its Get-details description', async () => {
+      // `jira issue <issueId>` is the issue-detail command on the real
+      // surface — there is no `jira issue get` — so the legacy wording must
+      // still land on it.
+      const {cmd, output} = makeSearch(['jira issue get'])
       await cmd.run()
-      expect(output()).to.contain('jira issue get')
+      expect(output()).to.contain('jira issue')
     })
   })
 
@@ -118,6 +109,33 @@ describe('search', () => {
       expect(result.length).to.be.greaterThan(0)
       const first = result[0]
       expect(first).to.include.keys(['command', 'description'])
+    })
+
+    it('exposes argument and flag metadata for the matched command', async () => {
+      const {cmd} = makeSearchJson(['search'])
+      const result = await cmd.run()
+      const self = result.find((entry) => entry.commandId === 'search')
+      expect(self, 'the search command should match its own query').to.exist
+      expect(self!.args).to.deep.equal([
+        {query: {description: 'Search term to filter commands by', required: true, type: 'string'}},
+      ])
+      expect(self!.flags).to.deep.include({
+        json: {description: 'Format output as json.', required: false, type: 'boolean'},
+      })
+      // oclif option flags are reported under the type of value they accept.
+      expect(self!.flags).to.deep.include({
+        limit: {description: 'Maximum number of results to return', required: false, type: 'string'},
+      })
+    })
+
+    it('exposes required-argument metadata for jira issue', async () => {
+      const {cmd} = makeSearchJson(['jira issue get'])
+      const result = await cmd.run()
+      const issue = result.find((entry) => entry.commandId === 'jira issue')
+      expect(issue, 'jira issue should match').to.exist
+      expect(issue!.args).to.deep.equal([
+        {issueId: {description: 'Issue ID or issue key', required: true, type: 'string'}},
+      ])
     })
 
     it('returns empty results array when no commands match', async () => {
@@ -133,10 +151,10 @@ describe('search', () => {
     })
 
     it('includes the correct command in results', async () => {
-      const {cmd} = makeSearchJson(['update'])
+      const {cmd} = makeSearchJson(['pull request'])
       const result = await cmd.run()
       const commands = result.map((r) => r.command)
-      expect(commands.some((c) => c.startsWith('update'))).to.be.true
+      expect(commands.some((c) => c.startsWith('bb pr create'))).to.be.true
     })
   })
 
@@ -154,6 +172,16 @@ describe('search', () => {
     })
   })
 
+  describe('human-readable output', () => {
+    it('renders the <%= config.bin %> template in descriptions', async () => {
+      // The catalog keeps oclif templates unrendered, like a real Loadable
+      // command; the printed description must interpolate the bin name.
+      const {cmd, output} = makeSearch(['help'])
+      await cmd.run()
+      expect(output()).to.contain('Display help for sdkck.')
+    })
+  })
+
   describe('search logic', () => {
     it('returns no results for intent-only queries without lexical matches', async () => {
       const commands = [
@@ -168,17 +196,15 @@ describe('search', () => {
   })
 
   describe('synonyms', () => {
-    const commands = [
-      {id: 'jira issue get', pluginName: '@oclif/jira', summary: 'Get details of a specific issue'},
-      {id: 'jira issue list', pluginName: '@oclif/jira', summary: 'List issues'},
-      {id: 'deploy', summary: 'Ship the app to production'},
-    ]
+    // Real surface entries, not bespoke mocks: the bridge under test has to
+    // work against the same summaries production serves.
+    const commands = [fixtureCommand('jira issue create'), fixtureCommand('jira issue search'), fixtureCommand('help')]
 
-    it('matches "get ticket" to "jira issue get" when ticket↔issue synonym is loaded', async () => {
+    it('matches "get ticket" to issue commands when ticket↔issue synonym is loaded', async () => {
       const synonyms = buildSynonymMap([['ticket', 'issue']])
       const results = await searchCommands('get ticket', commands, synonyms)
       const ids = results.map((r) => r.cmd.id)
-      expect(ids).to.include('jira issue get')
+      expect(ids.some((id) => id.startsWith('jira issue'))).to.be.true
     })
 
     it('returns no synonym matches when no synonyms are configured', async () => {
@@ -192,16 +218,12 @@ describe('search', () => {
       const synonyms = buildSynonymMap([['bug', 'issue']])
       const results = await searchCommands('find bug', commands, synonyms)
       const ids = results.map((r) => r.cmd.id)
-      expect(ids).to.include('jira issue get')
+      expect(ids.some((id) => id.startsWith('jira issue'))).to.be.true
     })
 
     it('matches multi-word synonym phrases', async () => {
       const synonyms = buildSynonymMap([['pr', 'pull request', 'merge request']])
-      const commandsWithPr = [
-        {id: 'bb pr create', summary: 'Create a pull request'},
-        {id: 'jira issue get', summary: 'Get details of a specific issue'},
-      ]
-      const results = await searchCommands('create merge request', commandsWithPr, synonyms)
+      const results = await searchCommands('create merge request', [fixtureCommand('bb pr create')], synonyms)
       const ids = results.map((r) => r.cmd.id)
       expect(ids).to.include('bb pr create')
     })
