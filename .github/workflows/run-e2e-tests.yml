@@ -2,14 +2,11 @@ name: Run end-to-end tests
 
 permissions: read-all
 
-# No live sandboxes and no secrets: the search plugin only indexes command
-# metadata, it never invokes another plugin's command — so unlike the host
-# suite in the sdkck repo this runs per push and pull request.
+# On demand only. There are no live sandboxes and no secrets — the search
+# plugin only indexes command metadata, it never invokes another plugin's
+# command — but the suite is triggered manually rather than on every push and
+# pull request.
 on:
-  push:
-    branches:
-      - main
-  pull_request:
   workflow_dispatch:
 
 concurrency:
